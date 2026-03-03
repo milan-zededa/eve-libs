@@ -93,6 +93,7 @@ type HTTPClient struct {
 	// Network tracing
 	nfConn           *conntrack.Conn
 	tracingWG        sync.WaitGroup
+	batchWG          sync.WaitGroup
 	tracingCtx       context.Context
 	cancelTracing    context.CancelFunc
 	tracingStartedAt Timestamp
@@ -644,6 +645,8 @@ func (c *HTTPClient) GetTrace(description string) (HTTPTrace, []PacketCapture, e
 	// If we are in batch-offload mode, do NOT aggregate in-memory maps.
 	// The consumer should export JSON from the Bolt sink with this meta.
 	if c.batchCb != nil {
+		// Wait until all traces were offloaded.
+		c.batchWG.Wait()
 		return httpTrace, pcaps, nil
 	}
 
@@ -1045,7 +1048,11 @@ func (c *HTTPClient) flushIfThresholdLocked() {
 		return
 	}
 	cb := c.batchCb
-	go cb(snap)
+	c.batchWG.Add(1)
+	go func() {
+		cb(snap)
+		c.batchWG.Done()
+	}()
 }
 
 // flushAllLocked emits all remaining items (used on Close when enabled).
@@ -1118,7 +1125,11 @@ func (c *HTTPClient) flushAllLocked() {
 		return
 	}
 	cb := c.batchCb
-	go cb(snap)
+	c.batchWG.Add(1)
+	go func() {
+		cb(snap)
+		c.batchWG.Done()
+	}()
 }
 
 // processPendingTraces : processes all currently pending network traces.
