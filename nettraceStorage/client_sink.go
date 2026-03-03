@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"runtime/debug"
 
 	nt "github.com/lf-edge/eve-libs/nettrace"
 	"go.etcd.io/bbolt"
@@ -47,6 +48,8 @@ func NewBoltBatchSink(log nt.Logger, dbPath string) (*BoltBatchSink, error) {
 // DeleteDBFile deletes the BoltDB file, based on session UUID
 func (s *BoltBatchSink) DeleteDBFile() error {
 	if s.db != nil {
+		s.log.Infof("HEY! s.db closed by DeleteDBFile")
+		s.log.Infof(string(debug.Stack()))
 		_ = s.db.Close()
 	}
 	return os.Remove(s.path)
@@ -56,6 +59,8 @@ func (s *BoltBatchSink) DeleteDBFile() error {
 func (s *BoltBatchSink) Close() error {
 	// i want first to check if db is nil, and then close
 	if s.db != nil {
+		s.log.Infof("HEY! s.db closed by Close")
+		s.log.Infof(string(debug.Stack()))
 		return s.db.Close()
 	}
 	return nil
@@ -294,6 +299,7 @@ func (s *BoltBatchSink) streamBucketJSON(f *os.File, enc *json.Encoder, prefix, 
 			return nil
 		})
 	})
+	s.log.Infof("HEY! s.db.View: %v", err)
 	if err != nil {
 		return err
 	}

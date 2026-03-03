@@ -645,7 +645,9 @@ func (c *HTTPClient) GetTrace(description string) (HTTPTrace, []PacketCapture, e
 	// If we are in batch-offload mode, do NOT aggregate in-memory maps.
 	// The consumer should export JSON from the Bolt sink with this meta.
 	if c.batchCb != nil {
-		// Wait until all traces were offloaded.
+		// Offload any remaining traces and wait for all asynchronous
+		// batch callbacks to complete before returning.
+		c.flushAllLocked()
 		c.batchWG.Wait()
 		return httpTrace, pcaps, nil
 	}
