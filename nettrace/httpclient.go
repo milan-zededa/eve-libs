@@ -1127,7 +1127,9 @@ func (c *HTTPClient) flushAllLocked() {
 	cb := c.batchCb
 	c.batchWG.Add(1)
 	go func() {
+		c.log.Infof("HEY! Offloading batch: %+v", snap)
 		cb(snap)
+		c.log.Infof("HEY! Offloading batch DONE")
 		c.batchWG.Done()
 	}()
 }

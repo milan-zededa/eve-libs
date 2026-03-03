@@ -141,7 +141,7 @@ func (c *httpClientWrapper) unwrap() (*http.Client, error) {
 				// One DB per session.
 				dbPath := fmt.Sprintf("%s/nettrace_%s.db", c.nettraceDirPath, c.sessionUUID)
 
-				sink, err := ntStore.NewBoltBatchSink(dbPath)
+				sink, err := ntStore.NewBoltBatchSink(nil, dbPath)
 				if err != nil {
 					c.initErr = fmt.Errorf("failed to create nettrace sink: %w", err)
 					return

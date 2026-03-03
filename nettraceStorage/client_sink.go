@@ -25,17 +25,18 @@ const (
 // BoltBatchSink offloads batches of netTrace data into BoltDB
 // and supports exporting them into a single JSON file.
 type BoltBatchSink struct {
+	log  nt.Logger
 	db   *bbolt.DB
 	path string
 }
 
 // NewBoltBatchSink opens/creates the BoltDB file and initializes buckets.
-func NewBoltBatchSink(dbPath string) (*BoltBatchSink, error) {
+func NewBoltBatchSink(log nt.Logger, dbPath string) (*BoltBatchSink, error) {
 	db, err := bbolt.Open(dbPath, 0o666, nil)
 	if err != nil {
 		return nil, err
 	}
-	s := &BoltBatchSink{db: db, path: dbPath}
+	s := &BoltBatchSink{log: log, db: db, path: dbPath}
 	if err := s.ensureBuckets(); err != nil {
 		_ = db.Close()
 		return nil, err
@@ -65,7 +66,7 @@ func (s *BoltBatchSink) Handler() nt.BatchCallback { return s.HandleBatch }
 
 // HandleBatch persists a batch (upsert by TraceID). Safe to call concurrently.
 func (s *BoltBatchSink) HandleBatch(b nt.BatchSnapshot) {
-	_ = s.db.Update(func(tx *bbolt.Tx) error {
+	err := s.db.Update(func(tx *bbolt.Tx) error {
 		var err error
 		if err = s.upsertDials(tx, b.Dials); err != nil {
 			return err
@@ -87,6 +88,9 @@ func (s *BoltBatchSink) HandleBatch(b nt.BatchSnapshot) {
 		}
 		return err
 	})
+	if s.log != nil {
+		s.log.Infof("HEY! HandleBatch completed: %v", err)
+	}
 }
 
 // ExportToJSON writes one JSON file with everything persisted in Bbolt.
@@ -186,6 +190,9 @@ func putJSON(tx *bbolt.Tx, bucket string, key []byte, v interface{}) error {
 
 func (s *BoltBatchSink) upsertDials(tx *bbolt.Tx, items []nt.DialTrace) error {
 	for _, it := range items {
+		if s.log != nil {
+			s.log.Infof("HEY! upsertDials: %v", it)
+		}
 		if err := putJSON(tx, bucketDials, keyFor(it.TraceID), it); err != nil {
 			return err
 		}
@@ -195,6 +202,9 @@ func (s *BoltBatchSink) upsertDials(tx *bbolt.Tx, items []nt.DialTrace) error {
 
 func (s *BoltBatchSink) upsertHTTPReqs(tx *bbolt.Tx, items []nt.HTTPReqTrace) error {
 	for _, it := range items {
+		if s.log != nil {
+			s.log.Infof("HEY! upsertHTTPReqs: %v", it)
+		}
 		if err := putJSON(tx, bucketHTTPReqs, keyFor(it.TraceID), it); err != nil {
 			return err
 		}
@@ -204,6 +214,9 @@ func (s *BoltBatchSink) upsertHTTPReqs(tx *bbolt.Tx, items []nt.HTTPReqTrace) er
 
 func (s *BoltBatchSink) upsertDNS(tx *bbolt.Tx, items []nt.DNSQueryTrace) error {
 	for _, it := range items {
+		if s.log != nil {
+			s.log.Infof("HEY! upsertDNS: %v", it)
+		}
 		if err := putJSON(tx, bucketDNSQueries, keyFor(it.TraceID), it); err != nil {
 			return err
 		}
@@ -213,6 +226,9 @@ func (s *BoltBatchSink) upsertDNS(tx *bbolt.Tx, items []nt.DNSQueryTrace) error 
 
 func (s *BoltBatchSink) upsertTLS(tx *bbolt.Tx, items []nt.TLSTunnelTrace) error {
 	for _, it := range items {
+		if s.log != nil {
+			s.log.Infof("HEY! upsertTLS: %v", it)
+		}
 		if err := putJSON(tx, bucketTLSTuns, keyFor(it.TraceID), it); err != nil {
 			return err
 		}
@@ -222,6 +238,9 @@ func (s *BoltBatchSink) upsertTLS(tx *bbolt.Tx, items []nt.TLSTunnelTrace) error
 
 func (s *BoltBatchSink) upsertTCP(tx *bbolt.Tx, items []nt.TCPConnTrace) error {
 	for _, it := range items {
+		if s.log != nil {
+			s.log.Infof("HEY! upsertTCP: %v", it)
+		}
 		if err := putJSON(tx, bucketTCPConns, keyFor(it.TraceID), it); err != nil {
 			return err
 		}
@@ -231,6 +250,9 @@ func (s *BoltBatchSink) upsertTCP(tx *bbolt.Tx, items []nt.TCPConnTrace) error {
 
 func (s *BoltBatchSink) upsertUDP(tx *bbolt.Tx, items []nt.UDPConnTrace) error {
 	for _, it := range items {
+		if s.log != nil {
+			s.log.Infof("HEY! upsertUDP: %v", it)
+		}
 		if err := putJSON(tx, bucketUDPConns, keyFor(it.TraceID), it); err != nil {
 			return err
 		}
@@ -246,6 +268,9 @@ func (s *BoltBatchSink) streamBucketJSON(f *os.File, enc *json.Encoder, prefix, 
 	first := true
 	err := s.db.View(func(tx *bbolt.Tx) error {
 		b := tx.Bucket([]byte(bucket))
+		if s.log != nil {
+			s.log.Infof("HEY! streamBucketJSON bucket %s: %v", bucket, b)
+		}
 		if b == nil {
 			return nil
 		}
@@ -258,6 +283,9 @@ func (s *BoltBatchSink) streamBucketJSON(f *os.File, enc *json.Encoder, prefix, 
 			var data interface{}
 			if err := json.Unmarshal(v, &data); err != nil {
 				return err
+			}
+			if s.log != nil {
+				s.log.Infof("HEY! streamBucketJSON: %v", data)
 			}
 			if err := enc.Encode(data); err != nil {
 				return err
